@@ -1,7 +1,10 @@
 import uuid
+from datetime import datetime, timezone
 
 from flask import Flask, jsonify, request
 
+from audit_log import append_entry, get_log
+from signals.attribution import attribution_from_llm_score, label_from_attribution
 from signals.llm import llm_classify
 
 app = Flask(__name__)
@@ -22,6 +25,10 @@ def _validate_submit_payload(data):
     return {"text": text.strip(), "creator_id": creator_id.strip()}, None
 
 
+def _utc_timestamp() -> str:
+    return datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+
+
 @app.post("/submit")
 def submit():
     data = request.get_json(silent=True)
@@ -34,17 +41,39 @@ def submit():
     except (RuntimeError, ValueError) as exc:
         return jsonify({"error": str(exc)}), 500
 
-    return jsonify(
+    attribution = attribution_from_llm_score(llm_score)
+    confidence = llm_score
+    label = label_from_attribution(attribution)
+    content_id = str(uuid.uuid4())
+
+    response = {
+        "content_id": content_id,
+        "creator_id": payload["creator_id"],
+        "attribution": attribution,
+        "confidence": confidence,
+        "label": label,
+        "llm_score": llm_score,
+        "status": "classified",
+    }
+
+    append_entry(
         {
-            "submission_id": f"sub_{uuid.uuid4().hex[:12]}",
+            "content_id": content_id,
             "creator_id": payload["creator_id"],
-            "status": "classified",
+            "timestamp": _utc_timestamp(),
+            "attribution": attribution,
+            "confidence": confidence,
             "llm_score": llm_score,
-            "stylometric_score": None,
-            "final_score": None,
-            "label": "Likely AI",
+            "status": "classified",
         }
     )
+
+    return jsonify(response)
+
+
+@app.get("/log")
+def log():
+    return jsonify({"entries": get_log()})
 
 
 if __name__ == "__main__":
