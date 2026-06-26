@@ -4,8 +4,10 @@ from datetime import datetime, timezone
 from flask import Flask, jsonify, request
 
 from audit_log import append_entry, get_log
-from signals.attribution import attribution_from_llm_score, label_from_attribution
+from signals.attribution import attribution_from_score, label_from_attribution
 from signals.llm import llm_classify
+from signals.scoring import compute_final_score
+from signals.stylometric import stylometric_score
 
 app = Flask(__name__)
 
@@ -38,11 +40,13 @@ def submit():
 
     try:
         llm_score = llm_classify(payload["text"])
+        stylo_score = stylometric_score(payload["text"])
     except (RuntimeError, ValueError) as exc:
         return jsonify({"error": str(exc)}), 500
 
-    attribution = attribution_from_llm_score(llm_score)
-    confidence = llm_score
+    final_score = compute_final_score(llm_score, stylo_score)
+    attribution = attribution_from_score(final_score)
+    confidence = final_score
     label = label_from_attribution(attribution)
     content_id = str(uuid.uuid4())
 
@@ -53,6 +57,8 @@ def submit():
         "confidence": confidence,
         "label": label,
         "llm_score": llm_score,
+        "stylometric_score": stylo_score,
+        "final_score": final_score,
         "status": "classified",
     }
 
@@ -64,6 +70,8 @@ def submit():
             "attribution": attribution,
             "confidence": confidence,
             "llm_score": llm_score,
+            "stylometric_score": stylo_score,
+            "final_score": final_score,
             "status": "classified",
         }
     )

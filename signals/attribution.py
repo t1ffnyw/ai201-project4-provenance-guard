@@ -1,7 +1,7 @@
-def attribution_from_llm_score(llm_score: float) -> str:
-    if llm_score < 0.4:
+def attribution_from_score(score: float) -> str:
+    if score < 0.4:
         return "likely_human"
-    if llm_score <= 0.6:
+    if score <= 0.6:
         return "uncertain"
     return "likely_ai"
 
