@@ -13,3 +13,7 @@ def label_from_attribution(attribution: str) -> str:
         "likely_ai": "Likely AI",
     }
     return labels.get(attribution, "Mixed/Uncertain")
+
+
+def label_from_score(score: float) -> str:
+    return label_from_attribution(attribution_from_score(score))

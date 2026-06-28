@@ -22,3 +22,10 @@ def get_log(limit: int = 50) -> list[dict]:
         entries = [json.loads(line) for line in log_file if line.strip()]
 
     return entries[-limit:]
+
+
+def find_latest_submission(content_id: str) -> dict | None:
+    for entry in reversed(get_log(limit=10_000)):
+        if entry.get("content_id") == content_id and entry.get("event") == "submission":
+            return entry
+    return None
